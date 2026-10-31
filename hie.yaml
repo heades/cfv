@@ -1,0 +1,10 @@
+cradle:
+  cabal:
+    - path: "src"
+      component: "lib:cfv"
+
+    - path: "app/Main.hs"
+      component: "cfv:exe:cfv"
+
+    - path: "test"
+      component: "cfv:test:cfv-test"
