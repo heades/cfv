@@ -79,4 +79,5 @@ test-suite cfv-test
     build-depends:
         base ^>=4.22.0.0,
         hspec,
+        text,
         cfv    

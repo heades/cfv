@@ -56,6 +56,8 @@ module Configuration.Cfv
   , VarAttr (..)
   , parseCfvFile
   , parseCfvFileWith
+  , parseEvalCfv
+  , parseEvalCfvWith
     -- * Shell configuration
   , ShellConfig (..)
   , defaultShellConfig

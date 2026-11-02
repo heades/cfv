@@ -12,7 +12,9 @@ module  Configuration.Cfv.Parser
     ,SyntaxError (..)
     ,ErrorKind (..)
     ,Item (..)
-    ,Position (..)) where
+    ,Position (..)
+    ,parseEvalCfv
+    ,parseEvalCfvWith) where
 
 import qualified GHC.IO.Exception as E
 import Data.Text.Encoding.Error (UnicodeException)
@@ -55,6 +57,18 @@ parseCfvFile = parseCfvFileWith defaultShellConfig
 parseCfvFileWith :: ShellConfig -> FilePath -> IO (Either CfvError [Binding])
 parseCfvFileWith cfg path = do
   parsed <- readCfvFile path
+  case parsed of
+    Left err    -> pure (Left err)
+    Right decls -> runDeclarations cfg decls
+
+-- | Like 'parseCfvFile', but doesn't read from a file. Useful for testing.
+parseEvalCfv :: [Char] -> Text -> IO (Either CfvError [Binding])
+parseEvalCfv = parseEvalCfvWith defaultShellConfig
+
+-- | Like 'parseEvalCfv' but with an explicit shell configuration.
+parseEvalCfvWith :: ShellConfig -> [Char] -> Text -> IO (Either CfvError [Binding])
+parseEvalCfvWith cfg path txt = do
+  let parsed = BI.first FileSyntaxError $ parseCfv path txt
   case parsed of
     Left err    -> pure (Left err)
     Right decls -> runDeclarations cfg decls
