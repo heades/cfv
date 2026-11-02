@@ -18,6 +18,9 @@ extra-doc-files:
 
 common extensions
     default-language: GHC2021
+    default-extensions:
+        InstanceSigs
+        OverloadedStrings
 
 common ghc-options
     ghc-options: -Wall -Widentities
@@ -29,7 +32,10 @@ library
     import:           extensions
     import:           ghc-options
     exposed-modules:  
-        Cfv
+        Configuration.Cfv
+        Configuration.Cfv.AST
+        Configuration.Cfv.Parser
+        Configuration.Cfv.Shell        
     -- other-modules:
     -- other-extensions:
     build-depends:    

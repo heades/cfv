@@ -1,0 +1,6 @@
+-- Basic set of config variables.
+color="red";
+age='42';
+language="en";
+-- Get the current date from the shell.
+current_date=`date`;
