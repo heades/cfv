@@ -9,10 +9,18 @@ Maintainer  : harley.eades@gmail.com
 module CfvSpec (spec) where
 
 import Test.Hspec ( Spec, runIO, shouldBe, it, SpecWith, describe )
-import Configuration.Cfv (parseCfvFile, parseEvalCfv, CfvError (FileSyntaxError), SyntaxError (..), Position (..), ErrorKind (..), Var (..), VarAttr (..))
-import Data.Either (isRight)
-import Configuration.Cfv.Parser (Item(..))
 import qualified Data.Text as DT
+import Data.Either (isRight)
+
+import Configuration.Cfv.AST ( Var(..), VarAttr(..) )
+import Configuration.Cfv.Parser
+    ( parseCfvFile,
+      parseEvalCfv,
+      CfvError(FileSyntaxError),
+      SyntaxError(..),
+      Position(..),
+      ErrorKind(..),
+      Item(..) )
 
 spec :: Spec
 spec = do 
