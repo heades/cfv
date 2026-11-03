@@ -83,4 +83,4 @@ printVar name store errMsg = writeupT (putStrLn . msg) store
       let value_ = lookup name s
        in case value_ of
             Nothing -> errMsg
-            Just v -> v
+            Just v -> name <> " = " <> v <> ";"
