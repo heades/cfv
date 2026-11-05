@@ -9,16 +9,13 @@ Maintainer  : harley.eades@gmail.com
 
 -}
 module Configuration.Cfv.AST  
-    (Binding
+    (VarName
+    ,VarValue
+    ,Binding
     ,Var(..)
     ,VarAttr(..)
     ,varAttr
     ,revealVar) where
-import MAC.Labeled (Labeled, Id (unId), labelT)
-import MAC.Lattice (L, H, Less)
-import MAC.MAC (MACT, Res)
-import MAC.Effects (readdownT, createT, writeupT)
-import Control.Monad.State (State)
 
 -- | Whether a variable's value is sensitive.
 data VarAttr
@@ -58,29 +55,5 @@ revealVar :: Var -> String
 revealVar (Var _ v) = v
 
 type VarName = String
-type Binding = (VarName, VarValue)
+type Binding = (VarName, Var)
 
-type CfgVars = (Res H [Binding],Res L [Binding])
-
-publicCfgVars :: CfgVars -> Res L [Binding]
-publicCfgVars = snd
-
-secretCfvVars :: CfgVars -> Res H [Binding]
-secretCfvVars = fst
-
-readVar :: Less l l 
-        => VarName 
-        -> Res l [(VarName,VarValue)]
-        -> MACT l Maybe (Labeled l VarValue)
-readVar name store 
-  = readdownT (lookup name . fmap (\v' -> (name,v'))) store
-      >>= labelT . snd
-
-printVar :: VarName -> Res L [Binding] -> String -> MACT L IO ()
-printVar name store errMsg = writeupT (putStrLn . msg) store
-  where
-    msg s = 
-      let value_ = lookup name s
-       in case value_ of
-            Nothing -> errMsg
-            Just v -> name <> " = " <> v <> ";"

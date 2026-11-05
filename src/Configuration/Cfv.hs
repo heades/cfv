@@ -69,9 +69,12 @@ module Configuration.Cfv
   , Item (..)
   , Position (..)
   , CommandError (..)
-  , CommandProblem (..)    
+  , CommandProblem (..)
   ) where
 
 import Configuration.Cfv.AST
 import Configuration.Cfv.Shell
 import Configuration.Cfv.Parser
+
+import System.IO (hPutStrLn, stderr)
+

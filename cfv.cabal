@@ -40,7 +40,7 @@ library
     -- other-extensions:
     build-depends:    
         base ^>= 4.22.0.0
-       ,mac 
+       ,gmcmonad
        ,mtl
        ,megaparsec
        ,text
