@@ -23,7 +23,6 @@ import Control.Concurrent (MVar, newEmptyMVar, forkIO, putMVar, takeMVar)
 import qualified Control.Exception as E
 import System.Environment (lookupEnv)
 import qualified Data.Text.Encoding as TE
-import qualified Data.Text as T
 import Control.Exception (try)
 import Data.Text (Text)
 import qualified Data.Text as DT
@@ -78,11 +77,11 @@ evalValue shellCfg cmd
           pure $ case result of
                     Left e -> failWith (ShellLaunchFailed shell e)
                     Right (ExitFailure n, _, err) ->
-                      failWith . NonZeroExit n . T.strip $ TE.decodeUtf8With lenientDecode err
+                      failWith . NonZeroExit n . DT.strip $ TE.decodeUtf8With lenientDecode err
                     Right (ExitSuccess, out, _) 
                       -> case TE.decodeUtf8' out of
                             Left e  -> failWith (OutputNotUtf8 e)
-                            Right t -> Right (T.unpack (T.dropWhileEnd (== '\n') t))
+                            Right t -> Right (DT.unpack (DT.dropWhileEnd (== '\n') t))
 
 resolveShell :: ShellConfig -> IO (Maybe FilePath)
 resolveShell cfg = case shellProgram cfg of

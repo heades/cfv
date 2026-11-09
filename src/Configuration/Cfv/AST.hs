@@ -45,7 +45,7 @@ instance Show Var where
   showsPrec :: Int -> Var -> ShowS
   showsPrec d (Var Public v) =
     showParen (d > 10) (showString "Public " . showsPrec 11 v)
-  showsPrec d (Var Secret _) = showString "Secret ()"
+  showsPrec _ (Var Secret _) = showString "Secret ()"
 
 -- | The variable's attribute.
 varAttr :: Var -> VarAttr

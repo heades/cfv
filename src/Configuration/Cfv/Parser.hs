@@ -27,14 +27,12 @@ import System.FilePath (takeExtension)
 import qualified Control.Exception as E
 import qualified Data.ByteString as BS
 import qualified Data.Text.Encoding as TE
-import Data.List (intercalate)
-import qualified Data.Text as T
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Set as Set
 import qualified Text.Megaparsec.Char.Lexer as L
 import Text.Megaparsec.Char (space1, string, char)
 import Control.Monad (void, when)
-import Data.Char (isLower, isAlphaNum, isAsciiLower, isAsciiUpper)
+import Data.Char (isAlphaNum, isAsciiLower, isAsciiUpper)
 import qualified Data.Bifunctor as BI
 
 import Configuration.Cfv.AST (VarAttr (..), Binding, Var (..))
