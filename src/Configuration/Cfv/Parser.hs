@@ -1,3 +1,4 @@
+{-# LANGUAGE ViewPatterns #-}
 {-|
 Module      : Parser
 Description : The CFV Parser
@@ -14,7 +15,8 @@ module  Configuration.Cfv.Parser
     ,Item (..)
     ,Position (..)
     ,parseEvalCfv
-    ,parseEvalCfvWith) where
+    ,parseEvalCfvWith
+    ,renderCfvError) where
 
 import qualified GHC.IO.Exception as E
 import Data.Text.Encoding.Error (UnicodeException)
@@ -32,11 +34,13 @@ import qualified Data.Set as Set
 import qualified Text.Megaparsec.Char.Lexer as L
 import Text.Megaparsec.Char (space1, string, char)
 import Control.Monad (void, when)
-import Data.Char (isLower, isAlphaNum)
+import Data.Char (isLower, isAlphaNum, isAsciiLower, isAsciiUpper)
 import qualified Data.Bifunctor as BI
 
 import Configuration.Cfv.AST (VarAttr (..), Binding, Var (..))
 import Configuration.Cfv.Shell (CommandError (..), ShellConfig, defaultShellConfig, evalValue, describeProblem)
+import qualified Data.Text as DT
+import Data.List.NonEmpty (NonEmpty)
 
 -------------------------------------------------------------------------------------------------------------------
 -- Public API
@@ -77,7 +81,7 @@ parseEvalCfvWith cfg path txt = do
 
 -- | One @[secret] name = value@ declaration, as written in the file.
 data Declaration = Declaration
-  { declName     :: String
+  { declName     :: Text
   , declAttr     :: VarAttr
   , declValue    :: Value
   , declPosition :: Position
@@ -102,8 +106,8 @@ instance Show Declaration where
 
 -- | The right-hand side of a declaration.
 data Value
-  = StringValue String   -- ^ A quoted string, already unescaped.
-  | CommandValue String  -- ^ The text between backticks, unmodified.
+  = StringValue Text   -- ^ A quoted string, already unescaped.
+  | CommandValue Text  -- ^ The text between backticks, unmodified.
   deriving (Eq, Show)
 
 -- | Everything that can go wrong when processing a file.
@@ -116,7 +120,7 @@ data CfvError
     -- ^ The file's contents are not valid UTF-8.
   | FileSyntaxError SyntaxError
     -- ^ The contents do not parse.
-  | FileCommandError CommandError String VarAttr Position
+  | FileCommandError CommandError Text VarAttr Position
     -- ^ A backtick command could not be run, or failed. (Only produced by
     -- functions that run commands.)
   deriving (Eq, Show)
@@ -125,7 +129,7 @@ data CfvError
 data SyntaxError = SyntaxError
   { syntaxPosition   :: Position
   , syntaxKind       :: ErrorKind
-  , syntaxSourceLine :: Maybe String
+  , syntaxSourceLine :: Maybe Text
     -- ^ The source line containing 'syntaxPosition'. Always 'Nothing' when the
     -- input contains the text @secret@ anywhere (even in a comment), because
     -- the line could then contain, or be part of, a secret value. Every
@@ -136,7 +140,7 @@ data SyntaxError = SyntaxError
 data ErrorKind
   = UnexpectedInput (Maybe Item) [Item]
     -- ^ Found this (if known), but expected one of these.
-  | ReservedWord String
+  | ReservedWord Text
     -- ^ A Haskell keyword (or a lone @_@) was used as a variable name.
     -- Position: start of the word.
   | InvalidEscape (Maybe Char)
@@ -149,14 +153,14 @@ data ErrorKind
   | UnterminatedCommand
     -- ^ A backtick command with no closing backtick.
     -- Position: the opening backtick.
-  | OtherFailure String
+  | OtherFailure Text
     -- ^ Anything else; should not occur with the current grammar.
   deriving (Eq, Show)
 
 -- | Something the parser found or expected.
 data Item
-  = Literal String      -- ^ Specific text, such as @";"@.
-  | Description String  -- ^ A named construct, such as @"variable name"@.
+  = Literal Text      -- ^ Specific text, such as @";"@.
+  | Description Text  -- ^ A named construct, such as @"variable name"@.
   | EndOfFile
   deriving (Eq, Ord, Show)
 
@@ -171,11 +175,11 @@ data Position = Position
 
 instance E.Exception CfvError where
   displayException :: CfvError -> String
-  displayException = renderCfvError
+  displayException = DT.unpack . renderCfvError 
 
 instance E.Exception SyntaxError where
   displayException :: SyntaxError -> String
-  displayException = renderSyntaxError
+  displayException = DT.unpack . renderSyntaxError
 
 -- | Turn declarations into bindings, running each 'CommandValue' in the user's
 -- shell. The shell is only looked up if there is at least one command.
@@ -189,7 +193,7 @@ runDeclarations cfg = go []
             result <- evalValue cfg cmd
             case result of
               Left err -> pure (Left $ FileCommandError err (declName d) (declAttr d) (declPosition d))
-              Right v  -> go ((declName d, Var (declAttr d) v) : acc) ds
+              Right v  -> go ((declName d, Var (declAttr d) (DT.pack v)) : acc) ds
         StringValue v -> go ((declName d, Var (declAttr d) v) : acc) ds
 
 -- | Check the extension, read and parse a file, without running any command.
@@ -211,58 +215,60 @@ readCfvFile path
 parseCfv :: FilePath -> Text -> Either SyntaxError [Declaration]
 parseCfv name input = BI.first fromBundle $ parse program name input
 
-renderCommandError :: CommandError -> String -> VarAttr -> Position -> String
+renderCommandError :: CommandError -> Text -> VarAttr -> Position -> Text
 renderCommandError (CommandError cmd problem) name varAttr (Position f l c _)
-  = f ++ ":" ++ show l ++ ":" ++ show c ++ ": error: variable " ++ show name
-      ++ ": " ++ describeProblem problem
-      ++ if varAttr == Secret then "" else "\n  command: " ++ cmd 
+  = (DT.pack f) <> ":" <> DT.show l <> ":" <> DT.show c <> ": error: variable " <> DT.show name
+      <> ": " <> describeProblem problem
+      <> if varAttr == Secret then "" else "\n  command: " <> cmd 
 
-renderCfvError :: CfvError -> String
-renderCfvError (InvalidExtension p)
-  = p ++ ": not a .cfv file (the file name must end in \".cfv\")"
-renderCfvError (FileReadError p e)            
-  = p ++ ": cannot read file: " ++ show e
-renderCfvError (FileDecodeError p e)          
-  = p ++ ": file is not valid UTF-8: " ++ show e
+renderCfvError :: CfvError -> Text
+renderCfvError (InvalidExtension (DT.pack->p))
+  = p <> ": not a .cfv file (the file name must end in \".cfv\")"
+renderCfvError (FileReadError (DT.pack->p) e)            
+  = p <> ": cannot read file: " <> DT.show e
+renderCfvError (FileDecodeError (DT.pack->p) e)          
+  = p <> ": file is not valid UTF-8: " <> DT.show e
 renderCfvError (FileSyntaxError e)            
   = renderSyntaxError e
 renderCfvError (FileCommandError e n vatr p)  
   = renderCommandError e n vatr p
 
 -- | Multi-line, compiler-style message with a caret under the error.
-renderSyntaxError :: SyntaxError -> String
-renderSyntaxError (SyntaxError (Position f l c _) kind srcLine) =
-  intercalate "\n" $
-    [ f ++ ":" ++ show l ++ ":" ++ show c ++ ": error: " ++ describeKind kind ]
-      ++ case srcLine of
-           Just ln -> [ "  | " ++ ln, "  | " ++ replicate (c - 1) ' ' ++ "^" ]
-           Nothing -> []
+renderSyntaxError :: SyntaxError -> Text
+renderSyntaxError (SyntaxError (Position (DT.pack->f) l c _) kind srcLine) =
+  DT.intercalate "\n" $
+    [ f <> ":" <> DT.show l <> ":" <> DT.show c <> ": error: " <> describeKind kind ]
+      <> case srcLine of
+            Just ln -> [ "  | " <> ln, "  | " <> DT.replicate (c - 1) " " <> "^" ]
+            Nothing -> []
 
-describeKind :: ErrorKind -> String
-describeKind (UnexpectedInput found expected) =
-  "unexpected " ++ maybe "input" describeItem found
-    ++ (if null expected
-          then ""
-          else "; expected " ++ intercalate ", " (map describeItem expected))
+describeKind :: ErrorKind -> Text
+describeKind (UnexpectedInput found expected) 
+  = "unexpected " <> maybe "input" describeItem found
+ <> (if null expected
+     then ""
+     else "; expected " <> DT.intercalate ", " (map describeItem expected))
 describeKind (ReservedWord w) =
-  "reserved word " ++ show w ++ " cannot be used as a variable name"
-describeKind (InvalidEscape (Just c)) = "invalid escape sequence \\" ++ [c]
-describeKind (InvalidEscape Nothing) =
-  "invalid escape sequence (character withheld: secret value)"
-describeKind (UnterminatedString q) =
-  "unterminated string literal (no closing " ++ [q] ++ " for this one)"
-describeKind UnterminatedCommand =
-  "unterminated command (no closing backtick for this one)"
-describeKind (OtherFailure msg) = msg
+  "reserved word " <> DT.show w <> " cannot be used as a variable name"
+describeKind (InvalidEscape (Just c)) 
+  = "invalid escape sequence \\" <> DT.singleton c
+describeKind (InvalidEscape Nothing) 
+  = "invalid escape sequence (character withheld: secret value)"
+describeKind (UnterminatedString q) 
+  = "unterminated string literal (no closing " <> DT.singleton q <> " for this one)"
+describeKind UnterminatedCommand 
+  = "unterminated command (no closing backtick for this one)"
+describeKind (OtherFailure msg) 
+  = msg
 
-describeItem :: Item -> String
-describeItem (Literal s)     = show s
+describeItem :: Item -> Text
+describeItem (Literal s)     = DT.show s
 describeItem (Description d) = d
 describeItem EndOfFile       = "end of input"
 
 -- | Internal custom errors raised by the parser itself.
 data Custom
-  = CReservedWord String
+  = CReservedWord Text
   | CInvalidEscape (Maybe Char)
   | CUnterminatedString Char
   | CUnterminatedCommand
@@ -276,9 +282,9 @@ fromBundle bundle =
   SyntaxError
     { syntaxPosition   = toPosition (pstateSourcePos posState) offset
     , syntaxKind       = kind
-    , syntaxSourceLine = if "secret" `T.isInfixOf` pstateInput (bundlePosState bundle)
+    , syntaxSourceLine = if "secret" `DT.isInfixOf` pstateInput (bundlePosState bundle)
                            then Nothing
-                           else srcLine
+                           else fmap DT.pack srcLine
     }
   where
     -- Without error recovery there is exactly one error in the bundle.
@@ -294,9 +300,12 @@ fromBundle bundle =
         (f : _) -> fromFancy f
         []      -> OtherFailure "unknown error"
 
+textFromNEList :: NonEmpty Char -> Text
+textFromNEList = DT.pack . NE.toList
+
 fromItem :: ErrorItem Char -> Item
-fromItem (Tokens ts) = Literal (NE.toList ts)
-fromItem (Label cs)  = Description (NE.toList cs)
+fromItem (Tokens ts) = Literal $ textFromNEList ts
+fromItem (Label cs)  = Description $ textFromNEList cs
 fromItem EndOfInput  = EndOfFile
 
 fromFancy :: ErrorFancy Custom -> ErrorKind
@@ -304,7 +313,7 @@ fromFancy (ErrorCustom (CReservedWord w))       = ReservedWord w
 fromFancy (ErrorCustom (CInvalidEscape c))      = InvalidEscape c
 fromFancy (ErrorCustom (CUnterminatedString q)) = UnterminatedString q
 fromFancy (ErrorCustom CUnterminatedCommand)    = UnterminatedCommand
-fromFancy (ErrorFail msg)                       = OtherFailure msg
+fromFancy (ErrorFail msg)                       = OtherFailure . DT.pack $ msg
 fromFancy ErrorIndentation {}                   = OtherFailure "indentation error"
 
 type Parser = Parsec Custom Text
@@ -332,7 +341,7 @@ lineComment = try $ do
   notFollowedBy (satisfy isSymbolChar)
   void (takeWhileP (Just "comment text") (/= '\n'))
   where
-    isSymbolChar c = c `elem` ("!#$%&*+./<=>?@\\^|~:" :: String)
+    isSymbolChar c = c `elem` ['!','#','$','%','&','*','+','.','/','<','=','>','?','@','\\','^','|','~',':']
 
 lexeme :: Parser a -> Parser a
 lexeme = L.lexeme sc
@@ -342,25 +351,24 @@ symbol = L.symbol sc
 
 -- | A Haskell variable identifier: starts with a lowercase letter or @_@,
 -- continues with letters, digits, @_@ or @'@, and is not a reserved word.
-varName :: Parser String
+varName :: Parser Text
 varName = lexeme $ do
   start <- getOffset
-  c  <- satisfy (\x -> isLower x || x == '_') <?> "variable name"
+  c  <- satisfy (\x -> isAsciiLower x || isAsciiUpper x || x == '_') <?> "variable name"
   cs <- takeWhileP Nothing (\x -> isAlphaNum x || x == '_' || x == '\'')
-  let name = c : T.unpack cs
+  let name = DT.cons c cs
   when (name `elem` reserved) $ failAt start (CReservedWord name)
   pure name
 
-reserved :: [String]
-reserved =
-  [ "_" ]
+reserved :: [Text]
+reserved = [ "_" ]
 
 -- | A single- or double-quoted string. Supports the escapes
 -- @\\\\ \\' \\" \\n \\t \\r \\0@. Raw newlines are allowed inside strings.
-stringLit :: Parser String
+stringLit :: Parser Text
 stringLit = lexeme (quoted '\'' <|> quoted '"') <?> "string literal"
 
-quoted :: Char -> Parser String
+quoted :: Char -> Parser Text
 quoted q = do
   start <- getOffset
   _ <- char q
@@ -369,7 +377,7 @@ quoted q = do
   closed <- optional (char q)
   case closed of
     Nothing -> failAt start (CUnterminatedString q)
-    Just _  -> pure body
+    Just _  -> pure . DT.pack $ body
   where
     plain = satisfy (\c -> c /= q && c /= '\\')
 
@@ -387,7 +395,7 @@ quoted q = do
       ]
 
 -- | A backtick-delimited shell command: everything up to the next backtick.
-commandLit :: Parser String
+commandLit :: Parser Text
 commandLit = lexeme body <?> "backtick command"
   where
     body = do
@@ -397,7 +405,7 @@ commandLit = lexeme body <?> "backtick command"
       closed <- optional (char '`')
       case closed of
         Nothing -> failAt start CUnterminatedCommand
-        Just _  -> pure (T.unpack cmd)
+        Just _  -> pure cmd
 
 
 -- | The optional @secret@ prefix. It is only a keyword when something other

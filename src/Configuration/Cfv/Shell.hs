@@ -25,6 +25,8 @@ import System.Environment (lookupEnv)
 import qualified Data.Text.Encoding as TE
 import qualified Data.Text as T
 import Control.Exception (try)
+import Data.Text (Text)
+import qualified Data.Text as DT
 
 -- | A backtick command that could not produce a value.
 --
@@ -32,7 +34,7 @@ import Control.Exception (try)
 -- withheld: the command text (which may embed it) and the details of the
 -- command's output (see 'CommandProblem').
 data CommandError = CommandError
-  { cmdCommand  :: String    
+  { cmdCommand  :: Text    
   , cmdProblem  :: CommandProblem
   } deriving (Eq, Show)
 
@@ -41,7 +43,7 @@ data CommandProblem
     -- ^ No shell configured and @SHELL@ is unset or empty.
   | ShellLaunchFailed FilePath E.IOException
     -- ^ The shell could not be started (not found, not executable, ...).
-  | NonZeroExit Int String
+  | NonZeroExit Int Text
     -- ^ The command exited with this status (negative: killed by that signal)
     -- and this standard error output, trimmed. The output is 'Nothing' for a
     -- 'Secret' variable.
@@ -65,18 +67,18 @@ data ShellConfig = ShellConfig
 defaultShellConfig :: ShellConfig
 defaultShellConfig = ShellConfig {shellProgram = Nothing, shellFlags = ["-l", "-c"]}
 
-evalValue :: ShellConfig -> String -> IO (Either CommandError [Char])
+evalValue :: ShellConfig -> Text -> IO (Either CommandError [Char])
 evalValue shellCfg cmd 
   = do let failWith = Left . CommandError cmd
        mShell <- resolveShell shellCfg
        case mShell of
          Nothing -> pure (failWith NoShell)
          Just shell -> do
-          result <- try $ execShell shell (shellFlags shellCfg) cmd
+          result <- try $ execShell shell (shellFlags shellCfg) $ DT.unpack cmd
           pure $ case result of
                     Left e -> failWith (ShellLaunchFailed shell e)
                     Right (ExitFailure n, _, err) ->
-                      failWith (NonZeroExit n (T.unpack (T.strip (TE.decodeUtf8With lenientDecode err)))) 
+                      failWith . NonZeroExit n . T.strip $ TE.decodeUtf8With lenientDecode err
                     Right (ExitSuccess, out, _) 
                       -> case TE.decodeUtf8' out of
                             Left e  -> failWith (OutputNotUtf8 e)
@@ -118,13 +120,13 @@ readAll h = do
     ignoreIO :: E.IOException -> IO BS.ByteString
     ignoreIO _ = pure BS.empty
 
-describeProblem :: CommandProblem -> String
+describeProblem :: CommandProblem -> Text
 describeProblem NoShell =
   "cannot run command: no shell configured and $SHELL is not set"
 describeProblem (ShellLaunchFailed sh e) =
-  "cannot start shell " ++ show sh ++ ": " ++ show e
+  "cannot start shell " <> DT.show sh <> ": " <> DT.show e
 describeProblem (NonZeroExit n err) =
-  "command exited with status " ++ show n ++ (if null err then "" else ": " ++ err)
+  "command exited with status " <> DT.show n <> (if DT.null err then "" else ": " <> err)
 describeProblem (OutputNotUtf8 e) =
-  "command output is not valid UTF-8: " ++ show e
+  "command output is not valid UTF-8: " <> DT.show e
 -------------------------------------------------------------------------------------------------------------------

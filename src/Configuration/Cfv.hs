@@ -1,3 +1,7 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE ExplicitForAll #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE Safe #-}
 {-|
 Module      : Parser
 Description : The CFV Parser
@@ -61,7 +65,6 @@ module Configuration.Cfv
     -- * Shell configuration
   , ShellConfig (..)
   , defaultShellConfig
-
     -- * Errors
   , CfvError (..)
   , SyntaxError (..)
@@ -70,11 +73,10 @@ module Configuration.Cfv
   , Position (..)
   , CommandError (..)
   , CommandProblem (..)
+  , renderCfvError
   ) where
 
 import Configuration.Cfv.AST
 import Configuration.Cfv.Shell
 import Configuration.Cfv.Parser
-
-import System.IO (hPutStrLn, stderr)
 

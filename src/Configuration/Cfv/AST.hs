@@ -16,6 +16,7 @@ module Configuration.Cfv.AST
     ,VarAttr(..)
     ,varAttr
     ,revealVar) where
+import Data.Text (Text)
 
 -- | Whether a variable's value is sensitive.
 data VarAttr
@@ -34,7 +35,7 @@ data VarAttr
 -- There is deliberately no 'Read' instance. Use 'revealVar' to get at the
 -- value.
 
-type VarValue = String
+type VarValue = Text
 
 data Var 
   = Var VarAttr VarValue  
@@ -51,9 +52,9 @@ varAttr :: Var -> VarAttr
 varAttr (Var a _) = a
 
 -- | The variable's value, secret or not.
-revealVar :: Var -> String
+revealVar :: Var -> Text
 revealVar (Var _ v) = v
 
-type VarName = String
+type VarName = Text
 type Binding = (VarName, Var)
 
