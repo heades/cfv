@@ -13,6 +13,11 @@ build-type:         Simple
 extra-doc-files:
     CHANGELOG.md
     README.md
+extra-source-files:
+    test/files/basic.cfv
+tested-with: 
+    GHC == 9.8.4
+    GHC == 9.14.1
 description: 
     Declare configuration variables in a '.cfv' file and parse them.
 
@@ -48,7 +53,7 @@ library
         Configuration.Cfv.Parser
         Configuration.Cfv.Shell        
     build-depends:    
-        base       ^>= 4.22.0.0
+        base       >= 4.7    && < 5
        ,bytestring >= 0.12.2 && < 0.13
        ,containers >= 0.8    && < 0.9
        ,filepath   >= 1.5.4  && < 1.6
@@ -65,7 +70,7 @@ executable cfv
     import:           rts-options
     main-is:          Main.hs
     build-depends:
-         base ^>= 4.22.0.0
+         base >= 4.7 && < 5
         ,cfv
     hs-source-dirs:   app
     default-language: Haskell2010
@@ -83,7 +88,7 @@ test-suite cfv-test
     build-tool-depends: 
         hspec-discover:hspec-discover
     build-depends:
-         base ^>= 4.22.0.0
+         base  >= 4.7     && < 5
         ,hspec >= 2.11.18 && < 2.12
         ,text  >= 2.1.3   && < 2.2
         ,cfv

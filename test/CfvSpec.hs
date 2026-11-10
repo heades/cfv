@@ -9,8 +9,6 @@ Maintainer  : harley.eades@gmail.com
 module CfvSpec (spec) where
 
 import Test.Hspec ( Spec, runIO, shouldBe, it, SpecWith, describe )
-import qualified Data.Text as DT
-import Data.Either (isRight)
 
 import Configuration.Cfv.AST ( Var(..), VarAttr(..) )
 import Configuration.Cfv.Parser
@@ -20,7 +18,10 @@ import Configuration.Cfv.Parser
       SyntaxError(..),
       Position(..),
       ErrorKind(..),
-      Item(..) )
+      Item(..), renderCfvError )
+
+import System.IO (stderr)
+import Data.Text.IO (hPutStrLn)
 
 spec :: Spec
 spec = do 
@@ -34,9 +35,12 @@ spec = do
 
 testParseBasicCfv :: SpecWith ()
 testParseBasicCfv = do
-    r <- runIO $ parseCfvFile "test/files/basic.cfv"
-    runIO $ putStrLn . show $ r
-    it "parseBasicCfv" $ (isRight r) `shouldBe` True
+    r <- runIO $ parseCfvFile "test/files/basic.cfv"    
+    either 
+        (\err -> do runIO . hPutStrLn stderr . renderCfvError $ err
+                    it "parseBasicCfv" False) 
+        (\_ -> it "parseBasicCfv" True) 
+        r    
 
 testParseNoSemiColon :: SpecWith ()
 testParseNoSemiColon = do
@@ -44,13 +48,13 @@ testParseNoSemiColon = do
     let testConfig = "exampleVar = 'example value'"
     r <- runIO $ parseEvalCfv file testConfig
     it "parseNoSemiColon" $ r `shouldBe` (Left . FileSyntaxError $ SyntaxError 
-        { syntaxPosition = (Position 
+        { syntaxErrorPosition = (Position 
                                 { posFile = file
                                 , posLine = 1
                                 , posColumn = 29
                                 , posOffset = 28 })
-        , syntaxKind = UnexpectedInput (Just EndOfFile) [Literal ";"]
-        , syntaxSourceLine = Just . DT.unpack $ testConfig
+        , syntaxErrorKind = UnexpectedInput (Just EndOfFile) [Literal ";"]
+        , syntaxErrorSourceLine = Just testConfig
         })
 
 testParseNoSemiColonMultiline :: SpecWith ()
@@ -59,13 +63,13 @@ testParseNoSemiColonMultiline = do
     let testConfig = "exampleVar1 = 'example value 1';\nexampleVar2 = 'example value 2'\nexampleVar3 = 'example value 3';"
     r <- runIO $ parseEvalCfv file testConfig    
     it "parseNoSemiColonMultiLine" $ r `shouldBe` (Left . FileSyntaxError $ SyntaxError 
-        { syntaxPosition = (Position 
+        { syntaxErrorPosition = (Position 
                                 { posFile = file
                                 , posLine = 3
                                 , posColumn = 1
                                 , posOffset = 65 })
-        , syntaxKind = UnexpectedInput (Just (Literal "e")) [Literal ";"]
-        , syntaxSourceLine = Just "exampleVar3 = 'example value 3';"
+        , syntaxErrorKind = UnexpectedInput (Just (Literal "e")) [Literal ";"]
+        , syntaxErrorSourceLine = Just "exampleVar3 = 'example value 3';"
         })
 
 testParseSecret :: SpecWith ()
@@ -83,4 +87,4 @@ testShowSecret = do
     it "testParseSecret" $ do 
         r `shouldBe` Right [("exampleVar", Var Secret "secret value")]
         let (Right r') = r
-        (show r') `shouldBe` ("[(\"exampleVar\",Secret <redacted>)]")
+        (show r') `shouldBe` ("[(\"exampleVar\",Secret ())]")

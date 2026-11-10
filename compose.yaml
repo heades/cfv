@@ -1,0 +1,15 @@
+name: cfv
+
+services:
+  base:
+    build:
+      context: .
+      dockerfile: Docker.base
+
+  cfv:
+    build:
+      context: .
+      network: host
+    container_name: cfv
+
+

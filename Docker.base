@@ -1,0 +1,45 @@
+FROM debian:bookworm
+
+SHELL ["/bin/bash", "-c"]
+
+# Haskell + stack dependencies:
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        dpkg-dev \
+        git \
+        gcc \
+        gnupg \
+        g++ \
+        libc6-dev \
+        libffi-dev \
+        libgmp-dev \
+        libnuma-dev \
+        libtinfo-dev \
+        make \
+        netbase \
+        xz-utils \
+        zlib1g-dev \
+        && \
+    rm -rf /var/lib/apt/lists/*     
+
+# Setup GHCup + Cabal:
+RUN curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | BOOTSTRAP_HASKELL_NONINTERACTIVE=1 BOOTSTRAP_HASKELL_MINIMAL=1 BOOTSTRAP_HASKELL_INSTALL_NO_STACK=0 BOOTSTRAP_HASKELL_INSTALL_NO_STACK_HOOK=0 sh
+
+# Install the GHCs:
+RUN /root/.ghcup/bin/ghcup --cache install ghc 9.8.4
+RUN /root/.ghcup/bin/ghcup --cache install ghc 9.10.1
+RUN /root/.ghcup/bin/ghcup --cache install ghc 9.10.2
+RUN /root/.ghcup/bin/ghcup --cache install ghc 9.10.3
+RUN /root/.ghcup/bin/ghcup --cache install ghc 9.12.2
+RUN /root/.ghcup/bin/ghcup --cache install ghc 9.12.4
+RUN /root/.ghcup/bin/ghcup --cache install ghc 9.14.1
+
+# Install Cabal:
+RUN /root/.ghcup/bin/ghcup --cache install cabal 3.18.2.0
+RUN /root/.ghcup/bin/ghcup set cabal 3.18.2.0
+RUN /root/.ghcup/bin/cabal update
+
+ENV PATH="/root/.ghcup/bin:${PATH}"
+ENV SHELL="/bin/bash"
