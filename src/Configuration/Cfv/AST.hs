@@ -7,6 +7,7 @@ Description : Abstract syntax
 Copyright   : (c) Harley Eades, 2026
 Maintainer  : harley.eades@gmail.com
 
+The abstract syntax for CFV files.
 -}
 module Configuration.Cfv.AST  
     (VarName
@@ -18,25 +19,23 @@ module Configuration.Cfv.AST
     ,revealVar) where
 import Data.Text (Text)
 
--- | Whether a variable's value is sensitive.
+-- | Security level for variables.
 data VarAttr
   = Public  -- ^ The default; has no syntax.
   | Secret  -- ^ Declared with a @secret@ prefix.
   deriving (Eq, Ord, Show)
 
--- | A variable's final value (after any command has been run) together with
--- its attribute.
---
--- The 'Show' instance never prints a 'Secret' value, so a list of bindings can
--- be logged safely:
---
--- > [("name",Public "x"),("key",Secret <redacted>)]
---
--- There is deliberately no 'Read' instance. Use 'revealVar' to get at the
--- value.
-
+-- | A variables value.
 type VarValue = Text
 
+-- | A variable's final value (after any command has been run) together with its
+-- attribute.
+--
+-- The 'Show' instance never prints a secret value, so a list of bindings can
+-- be logged safely:
+--
+-- > [("name",Public "x"),("key",Secret ())]
+--
 data Var 
   = Var VarAttr VarValue  
   deriving (Eq)
@@ -55,6 +54,9 @@ varAttr (Var a _) = a
 revealVar :: Var -> Text
 revealVar (Var _ v) = v
 
+-- | A variables name.
 type VarName = Text
+
+-- | A variable binding: a name, attribute, and a value.
 type Binding = (VarName, Var)
 

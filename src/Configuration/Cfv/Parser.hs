@@ -5,6 +5,7 @@ Description : The CFV Parser
 Copyright   : (c) Harley Eades, 2026
 Maintainer  : harley.eades@gmail.com
 
+This module consists of the CFV parser API. 
 -}
 module  Configuration.Cfv.Parser 
     (parseCfvFile
@@ -102,13 +103,13 @@ instance Show Declaration where
         . showChar ' '
         . showsPrec 11 p
 
--- | The right-hand side of a declaration.
+-- | The value of a variable declaration.
 data Value
   = StringValue Text   -- ^ A quoted string, already unescaped.
   | CommandValue Text  -- ^ The text between backticks, unmodified.
   deriving (Eq, Show)
 
--- | Everything that can go wrong when processing a file.
+-- | Everything that can go wrong when processing a CFV file.
 data CfvError
   = InvalidExtension FilePath
     -- ^ The file name does not end in @.cfv@ (checked before anything is read).
@@ -125,13 +126,15 @@ data CfvError
 
 -- | A problem with the text itself, with a location.
 data SyntaxError = SyntaxError
-  { syntaxPosition   :: Position
-  , syntaxKind       :: ErrorKind
-  , syntaxSourceLine :: Maybe Text
-    -- ^ The source line containing 'syntaxPosition'. Always 'Nothing' when the
-    -- input contains the text @secret@ anywhere (even in a comment), because
-    -- the line could then contain, or be part of, a secret value. Every
-    -- secret declaration contains that text, so this cannot miss one.
+  { syntaxErrorPosition   :: Position
+    -- ^ Approximate position where the syntax error occurred.
+  , syntaxErrorKind       :: ErrorKind
+  -- ^ The kind of syntax error.
+  , syntaxErrorSourceLine :: Maybe Text
+    -- ^ The source line containing error. Always 'Nothing' when the input
+    -- contains the text @secret@ anywhere (even in a comment), because the line
+    -- could then contain, or be part of, a secret value. Every secret
+    -- declaration contains that text, so this cannot miss one.
   } deriving (Eq, Show)
 
 -- | The specific kind of syntax error.
@@ -213,12 +216,14 @@ readCfvFile path
 parseCfv :: FilePath -> Text -> Either SyntaxError [Declaration]
 parseCfv name input = BI.first fromBundle $ parse program name input
 
+-- | Converts a command error into a 'Text' that is appropriate for logging.
 renderCommandError :: CommandError -> Text -> VarAttr -> Position -> Text
 renderCommandError (CommandError cmd problem) name varAttr (Position f l c _)
   = (DT.pack f) <> ":" <> DT.show l <> ":" <> DT.show c <> ": error: variable " <> DT.show name
       <> ": " <> describeProblem problem
       <> if varAttr == Secret then "" else "\n  command: " <> cmd 
 
+-- | Converts a error into a 'Text' that is appropriate for logging.
 renderCfvError :: CfvError -> Text
 renderCfvError (InvalidExtension (DT.pack->p))
   = p <> ": not a .cfv file (the file name must end in \".cfv\")"
@@ -240,6 +245,7 @@ renderSyntaxError (SyntaxError (Position (DT.pack->f) l c _) kind srcLine) =
             Just ln -> [ "  | " <> ln, "  | " <> DT.replicate (c - 1) " " <> "^" ]
             Nothing -> []
 
+-- | Describes a syntax error in a logging appropriate fashion.
 describeKind :: ErrorKind -> Text
 describeKind (UnexpectedInput found expected) 
   = "unexpected " <> maybe "input" describeItem found
@@ -259,6 +265,7 @@ describeKind UnterminatedCommand
 describeKind (OtherFailure msg) 
   = msg
 
+-- | Converts an 'Item' to a 'Text'.
 describeItem :: Item -> Text
 describeItem (Literal s)     = DT.show s
 describeItem (Description d) = d
@@ -272,15 +279,17 @@ data Custom
   | CUnterminatedCommand
   deriving (Eq, Ord, Show)
 
+-- | Converts a position in the source file into a t'Position'.
 toPosition :: SourcePos -> Int -> Position
 toPosition sp = Position (sourceName sp) (unPos (sourceLine sp)) (unPos (sourceColumn sp))
 
+-- | Converts a "Text.Megaparsec" error into a t'SyntaxError'.
 fromBundle :: ParseErrorBundle Text Custom -> SyntaxError
 fromBundle bundle =
   SyntaxError
-    { syntaxPosition   = toPosition (pstateSourcePos posState) offset
-    , syntaxKind       = kind
-    , syntaxSourceLine = if "secret" `DT.isInfixOf` pstateInput (bundlePosState bundle)
+    { syntaxErrorPosition   = toPosition (pstateSourcePos posState) offset
+    , syntaxErrorKind       = kind
+    , syntaxErrorSourceLine = if "secret" `DT.isInfixOf` pstateInput (bundlePosState bundle)
                            then Nothing
                            else fmap DT.pack srcLine
     }
@@ -298,14 +307,17 @@ fromBundle bundle =
         (f : _) -> fromFancy f
         []      -> OtherFailure "unknown error"
 
+-- | Converts a non-empty list of characters into a 'Text'.
 textFromNEList :: NonEmpty Char -> Text
 textFromNEList = DT.pack . NE.toList
 
+-- | Convert an t'Text.Megaparsec.Error.ErrorItem' into an 'Item'.
 fromItem :: ErrorItem Char -> Item
 fromItem (Tokens ts) = Literal $ textFromNEList ts
 fromItem (Label cs)  = Description $ textFromNEList cs
 fromItem EndOfInput  = EndOfFile
 
+-- | Convert an t'Text.Megaparsec.Error.ErrorFancy' into an 'ErrorKind'.
 fromFancy :: ErrorFancy Custom -> ErrorKind
 fromFancy (ErrorCustom (CReservedWord w))       = ReservedWord w
 fromFancy (ErrorCustom (CInvalidEscape c))      = InvalidEscape c
@@ -314,12 +326,14 @@ fromFancy (ErrorCustom CUnterminatedCommand)    = UnterminatedCommand
 fromFancy (ErrorFail msg)                       = OtherFailure . DT.pack $ msg
 fromFancy ErrorIndentation {}                   = OtherFailure "indentation error"
 
+-- | The parser on 'Text' tokens firing errors based on 'Custom'.
 type Parser = Parsec Custom Text
 
 -- | Fail with a custom error reported at the given offset.
 failAt :: Int -> Custom -> Parser a
 failAt o c = parseError (FancyError o (Set.singleton (ErrorCustom c)))
 
+-- | Get the current position during parsing.
 currentPosition :: Parser Position
 currentPosition = do
   off <- getOffset
@@ -341,9 +355,11 @@ lineComment = try $ do
   where
     isSymbolChar c = c `elem` ['!','#','$','%','&','*','+','.','/','<','=','>','?','@','\\','^','|','~',':']
 
+-- | A lexeme including our space consumer 'sc'.
 lexeme :: Parser a -> Parser a
 lexeme = L.lexeme sc
 
+-- | A symbol including our space consumer 'sc'.
 symbol :: Text -> Parser Text
 symbol = L.symbol sc
 
@@ -358,6 +374,7 @@ varName = lexeme $ do
   when (name `elem` reserved) $ failAt start (CReservedWord name)
   pure name
 
+-- | Reserved words.
 reserved :: [Text]
 reserved = [ "_" ]
 
@@ -366,7 +383,9 @@ reserved = [ "_" ]
 stringLit :: Parser Text
 stringLit = lexeme (quoted '\'' <|> quoted '"') <?> "string literal"
 
-quoted :: Char -> Parser Text
+-- | Parser a single or double quoted string.
+quoted :: Char -- ^ The quote character.
+       -> Parser Text
 quoted q = do
   start <- getOffset
   _ <- char q
@@ -405,18 +424,14 @@ commandLit = lexeme body <?> "backtick command"
         Nothing -> failAt start CUnterminatedCommand
         Just _  -> pure cmd
 
-
--- | The optional @secret@ prefix. It is only a keyword when something other
--- than @=@ follows it, so a variable may still be called @secret@. Absent
--- means 'Public'.
+-- | Parse a variable attribute.
 attribute :: Parser VarAttr
 attribute = option Public (Secret <$ try (keyword <* notFollowedBy (char '=')))
   where
     keyword = lexeme (string "secret" <* notFollowedBy (satisfy isNameChar))
     isNameChar x = isAlphaNum x || x == '_' || x == '\''
 
--- | @[secret] name = 'text';@, @[secret] name = "text";@ or
--- @[secret] name = `cmd`@ (the semicolon is optional after a command).
+-- | Parser a variable declaration.
 declaration :: Parser Declaration
 declaration = do
   pos   <- currentPosition
