@@ -1,6 +1,3 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE ExplicitForAll #-}
-{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE Safe #-}
 {-|
 Module      : Cfv
