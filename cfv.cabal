@@ -46,18 +46,15 @@ library
         Configuration.Cfv.AST
         Configuration.Cfv.Parser
         Configuration.Cfv.Shell        
-    -- other-modules:
-    -- other-extensions:
     build-depends:    
         base ^>= 4.22.0.0
-       ,mtl
-       ,megaparsec
-       ,text
-       ,bytestring
-       ,containers
-       ,filepath
-       ,process       
-
+       ,bytestring >= 0.12.2 && < 0.13
+       ,containers >= 0.8 && < 0.9
+       ,filepath >= 1.5.4 && < 1.6
+       ,megaparsec >= 9.8.3 && < 9.9
+       ,mtl >= 2.3.1 && < 2.4
+       ,process >= 1.6.26 && < 1.7
+       ,text >= 2.1.3 && < 2.2
     hs-source-dirs:   src
     default-language: Haskell2010
 
@@ -66,12 +63,9 @@ executable cfv
     import:           ghc-options
     import:           rts-options
     main-is:          Main.hs
-    -- other-modules:
-    -- other-extensions:
     build-depends:
-        base ^>=4.22.0.0,
-        cfv
-
+         base ^>=4.22.0.0
+        ,cfv
     hs-source-dirs:   app
     default-language: Haskell2010
 
@@ -82,14 +76,13 @@ test-suite cfv-test
     default-language: Haskell2010
     other-modules:
         CfvSpec
-    -- other-extensions:
     type:             exitcode-stdio-1.0
     hs-source-dirs:   test
     main-is:          Spec.hs
     build-tool-depends: 
         hspec-discover:hspec-discover
     build-depends:
-        base ^>=4.22.0.0,
-        hspec,
-        text,
-        cfv    
+         base ^>=4.22.0.0
+        ,hspec >= 2.11.18 && < 2.12
+        ,text >= 2.1.3 && < 2.2
+        ,cfv
