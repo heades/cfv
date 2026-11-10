@@ -15,9 +15,15 @@ extra-doc-files:
     README.md
 extra-source-files:
     test/files/basic.cfv
-tested-with: 
+tested-with:     
     GHC == 9.8.4
+    GHC == 9.10.1
+    GHC == 9.10.2
+    GHC == 9.10.3
+    GHC == 9.12.2
+    GHC == 9.12.4
     GHC == 9.14.1
+
 description: 
     Declare configuration variables in a '.cfv' file and parse them.
 
